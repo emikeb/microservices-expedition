@@ -1,5 +1,5 @@
 import pytest
-from microservices.services.user_service import app, init_db
+from user_service import app, init_db
 import sqlite3
 
 @pytest.fixture
