@@ -2,9 +2,15 @@ from flask import Flask, jsonify, request
 import sqlite3
 import os
 import consul
+import pika
+import json
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
+# Consul
 CONSUL_HOST = os.environ.get('CONSUL_HOST', 'localhost')
 c = consul.Consul(host=CONSUL_HOST)
 
@@ -20,6 +26,20 @@ c.agent.service.register(
     check=consul.Check.http(f"http://{os.environ.get('SERVICE_HOST', 'localhost')}:{SERVICE_PORT}/health", interval="10s")
 )
 
+# RabbitMQ
+RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'localhost')
+try:
+    connection = pika.BlockingConnection(pika.ConnectionParameters(
+        host=RABBITMQ_HOST,
+        heartbeat=600
+    ))
+    channel = connection.channel()
+    channel.queue_declare(queue='user_events')
+    logging.info("Connected to RabbitMQ and declared 'user_events' queue")
+except Exception as e:
+    logging.error(f"Error connecting to RabbitMQ: {e}")
+
+# SQLite
 def init_db():
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
@@ -51,6 +71,12 @@ def create_user():
     conn.commit()
     user_id = c.lastrowid
     conn.close()
+
+    # Publish event
+    channel.basic_publish(exchange='',
+                          routing_key='user_events',
+                          body=json.dumps({'event': 'user_created', 'user_id': user_id}))
+
     return jsonify({'id': user_id, 'username': user_data['username'], 'email': user_data['email']}), 201
 
 @app.route('/users/<int:user_id>', methods=['GET'])

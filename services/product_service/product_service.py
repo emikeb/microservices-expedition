@@ -2,10 +2,15 @@ from flask import Flask, jsonify, request
 import sqlite3
 import os
 import consul
+import pika
+import json
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
 
-
+# Consul
 CONSUL_HOST = os.environ.get('CONSUL_HOST', 'localhost')
 c = consul.Consul(host=CONSUL_HOST)
 
@@ -21,6 +26,20 @@ c.agent.service.register(
     check=consul.Check.http(f"http://{os.environ.get('SERVICE_HOST', 'localhost')}:{SERVICE_PORT}/health", interval="10s")
 )
 
+# RabbitMQ
+RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'localhost')
+try:
+    connection = pika.BlockingConnection(pika.ConnectionParameters(
+        host=RABBITMQ_HOST,
+        heartbeat=600
+    ))
+    channel = connection.channel()
+    channel.queue_declare(queue='product_events')
+    logging.info("Connected to RabbitMQ and declared 'product_events' queue")
+except Exception as e:
+    logging.error(f"Error connecting to RabbitMQ: {e}")
+
+# SQLite
 def init_db():
     conn = sqlite3.connect('products.db')
     c = conn.cursor()
@@ -52,6 +71,12 @@ def create_product():
     conn.commit()
     product_id = c.lastrowid
     conn.close()
+
+    # Publish event
+    channel.basic_publish(exchange='',
+                          routing_key='product_events',
+                          body=json.dumps({'event': 'product_created', 'product_id': product_id}))
+
     return jsonify({'id': product_id, 'name': product_data['name'], 'price': product_data['price']}), 201
 
 @app.route('/products/<int:product_id>', methods=['GET'])
