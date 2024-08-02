@@ -1,0 +1,71 @@
+name: Compose, Test and Coverage
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install docker-compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install docker-compose
+
+      - name: Docker Compose Up
+        run: |
+          docker-compose up -d
+          sleep 3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies and run tests for API Gateway
+        run: |
+          cd api_gateway
+          poetry install --no-root
+          poetry run coverage run -m pytest
+          mv .coverage ../.coverage-api_gateway
+
+      - name: Install dependencies and run tests for Product Service
+        run: |
+          cd services/product_service
+          poetry install --no-root
+          poetry run coverage run -m pytest
+          mv .coverage ../../.coverage-product_service
+
+      - name: Install dependencies and run tests for User Service
+        run: |
+          cd services/user_service
+          poetry install --no-root
+          poetry run coverage run -m pytest
+          mv .coverage ../../.coverage-user_service
+
+      - name: Install coverage
+        run: |
+          python -m pip install coverage
+
+      - name: Combine coverage reports
+        run: |
+          coverage combine .coverage-api_gateway .coverage-product_service .coverage-user_service
+          coverage report
+          coverage html
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4.0.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
