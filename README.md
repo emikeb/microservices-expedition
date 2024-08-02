@@ -1,5 +1,8 @@
 # Microservices Expedition
 
+![CI Status](https://github.com/emikeb/microservices-expedition/actions/workflows/gating.yaml/badge.svg)
+[![codecov](https://codecov.io/github/emikeb/microservices-expedition/graph/badge.svg?token=PR88BI9YVZ)](https://codecov.io/github/emikeb/microservices-expedition)
+
 ## Overview
 
 This project demonstrates a microservices architecture with basic and enhanced communication setups. The project is divided into multiple phases, each adding more complexity and features to the microservices.
