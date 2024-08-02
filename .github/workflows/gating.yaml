@@ -1,4 +1,4 @@
-name: Compose, Test and Coverage
+name: CI Workflow
 
 on:
   pull_request:
